@@ -1,0 +1,371 @@
+/* ============================================
+   VenueIQ Auth Page — Split-Panel Login/Signup
+   Google-inspired clean design with role-based theming
+   ============================================ */
+
+.page {
+  display: flex;
+  min-height: 100vh;
+  background: #f8faff;
+}
+
+/* --- Left Decorative Panel --- */
+.leftPanel {
+  flex: 1;
+  background: linear-gradient(135deg, #e8f0fe 0%, #f3e8fd 50%, #e6f4ea 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.leftPanel::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 30% 40%, rgba(26, 115, 232, 0.08) 0%, transparent 50%),
+              radial-gradient(circle at 70% 60%, rgba(161, 66, 244, 0.06) 0%, transparent 50%);
+  animation: bgShift 15s ease-in-out infinite alternate;
+}
+
+@keyframes bgShift {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(5%, 3%); }
+}
+
+.leftContent {
+  position: relative;
+  z-index: 1;
+  max-width: 400px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #5f6368;
+  text-decoration: none;
+  margin-bottom: 3rem;
+  transition: color 0.2s;
+}
+
+.backLink:hover {
+  color: #202124;
+}
+
+.leftTitle {
+  font-size: 2.75rem;
+  font-weight: 800;
+  color: #202124;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-bottom: 1rem;
+}
+
+.leftDesc {
+  font-size: 1.1rem;
+  color: #5f6368;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+.leftArt {
+  margin-top: 2rem;
+  opacity: 0.8;
+}
+
+/* --- Right Panel (Auth Form) --- */
+.rightPanel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  background: white;
+}
+
+.formCard {
+  width: 100%;
+  max-width: 420px;
+}
+
+.formLogo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 2.5rem;
+}
+
+.formLogoIcon {
+  width: 36px;
+  height: 36px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.formLogoText {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #202124;
+  letter-spacing: -0.02em;
+}
+
+.accent {
+  color: #1a73e8;
+}
+
+.formTitle {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #202124;
+  margin-bottom: 0.5rem;
+}
+
+.formSubtitle {
+  font-size: 0.95rem;
+  color: #5f6368;
+  margin-bottom: 2rem;
+}
+
+/* --- Role Toggle --- */
+.roleToggle {
+  display: flex;
+  gap: 0.5rem;
+  background: #f1f3f4;
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 1.5rem;
+}
+
+.roleBtn {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #5f6368;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.25s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.roleBtnActive {
+  background: white;
+  color: #202124;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.04);
+}
+
+/* --- Google Sign-In Button --- */
+.googleBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  background: white;
+  border: 1.5px solid #dadce0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #3c4043;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 1.5rem;
+}
+
+.googleBtn:hover {
+  background: #f8f9fa;
+  border-color: #c0c4c9;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.googleBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Divider --- */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  color: #80868b;
+  font-size: 0.85rem;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e8eaed;
+}
+
+/* --- Form Inputs --- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inputGroup {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 14px;
+  color: #80868b;
+  pointer-events: none;
+  transition: color 0.2s;
+}
+
+.input {
+  width: 100%;
+  padding: 0.85rem 1rem 0.85rem 2.75rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: #202124;
+  background: #f8f9fa;
+  border: 1.5px solid #e8eaed;
+  border-radius: 12px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input::placeholder {
+  color: #9aa0a6;
+}
+
+.input:focus {
+  background: white;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.12);
+}
+
+.input:focus + .inputIcon,
+.inputGroup:focus-within .inputIcon {
+  color: #1a73e8;
+}
+
+/* --- Error Message --- */
+.error {
+  padding: 0.75rem 1rem;
+  background: #fce8e6;
+  color: #c5221f;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: 1px solid #f5c6c2;
+}
+
+/* --- Submit Button --- */
+.submitBtn {
+  width: 100%;
+  padding: 0.9rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  background: #1a73e8;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 0.5rem;
+}
+
+.submitBtn:hover {
+  background: #1557b0;
+  box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3);
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --- Switch Mode --- */
+.switchMode {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: #5f6368;
+}
+
+.switchBtn {
+  color: #1a73e8;
+  font-weight: 600;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 0.9rem;
+  transition: color 0.2s;
+}
+
+.switchBtn:hover {
+  color: #1557b0;
+  text-decoration: underline;
+}
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .page {
+    flex-direction: column;
+  }
+
+  .leftPanel {
+    padding: 2rem;
+    min-height: auto;
+  }
+
+  .leftTitle {
+    font-size: 2rem;
+  }
+
+  .leftArt {
+    display: none;
+  }
+
+  .rightPanel {
+    padding: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .leftPanel {
+    padding: 1.5rem;
+  }
+
+  .leftTitle {
+    font-size: 1.75rem;
+  }
+
+  .rightPanel {
+    padding: 1.5rem;
+  }
+
+  .formCard {
+    max-width: 100%;
+  }
+}

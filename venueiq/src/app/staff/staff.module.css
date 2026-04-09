@@ -1,0 +1,378 @@
+/* ============================================
+   VenueIQ Staff Dashboard — Specific Styles
+   Additional styles on top of shared dashboard.module.css
+   ============================================ */
+
+/* --- Heatmap Grid --- */
+.heatmapContainer {
+  position: relative;
+  background: #1a1d21;
+  border-radius: 16px;
+  overflow: hidden;
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heatmapSvg {
+  width: 100%;
+  height: 100%;
+  max-height: 450px;
+}
+
+/* --- Alert List --- */
+.alertList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alertItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid #e8eaed;
+  background: white;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.alertItem:hover {
+  border-color: #dadce0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.alertItemUrgent {
+  border-left: 4px solid #d93025;
+  background: #fffbfa;
+}
+
+.alertItemWarning {
+  border-left: 4px solid #f9ab00;
+  background: #fffef5;
+}
+
+.alertItemInfo {
+  border-left: 4px solid #1a73e8;
+}
+
+.alertItemResolved {
+  opacity: 0.5;
+  border-left: 4px solid #0d904f;
+}
+
+.alertIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.alertIconUrgent {
+  background: #fce8e6;
+  color: #d93025;
+}
+
+.alertIconWarning {
+  background: #fef7e0;
+  color: #e8710a;
+}
+
+.alertIconInfo {
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.alertIconResolved {
+  background: #e6f4ea;
+  color: #0d904f;
+}
+
+.alertContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.alertTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #202124;
+  margin-bottom: 0.15rem;
+}
+
+.alertMeta {
+  font-size: 0.75rem;
+  color: #80868b;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.alertTime {
+  font-size: 0.7rem;
+  color: #9aa0a6;
+  flex-shrink: 0;
+}
+
+.alertActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.alertActionBtn {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid #dadce0;
+  background: white;
+  color: #5f6368;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.alertActionBtn:hover {
+  background: #f1f3f4;
+}
+
+.alertActionBtnPrimary {
+  background: #1a73e8;
+  color: white;
+  border-color: #1a73e8;
+}
+
+.alertActionBtnPrimary:hover {
+  background: #1557b0;
+}
+
+.alertActionBtnDanger {
+  background: #d93025;
+  color: white;
+  border-color: #d93025;
+}
+
+.alertActionBtnDanger:hover {
+  background: #b31412;
+}
+
+/* --- Staff Metric Cards --- */
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.metricCard {
+  background: white;
+  border-radius: 14px;
+  border: 1px solid #e8eaed;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.metricLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #80868b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metricValue {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #202124;
+  line-height: 1;
+}
+
+.metricSubtext {
+  font-size: 0.8rem;
+  color: #5f6368;
+}
+
+.metricBar {
+  height: 6px;
+  background: #f1f3f4;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 0.25rem;
+}
+
+.metricBarFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+/* --- Zone Status Grid --- */
+.zoneGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.zoneCard {
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1.5px solid #e8eaed;
+  background: white;
+  transition: all 0.15s;
+}
+
+.zoneCard:hover {
+  border-color: #dadce0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.zoneHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.zoneName {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #202124;
+}
+
+.zoneStatusBadge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.zoneCapacity {
+  font-size: 0.8rem;
+  color: #5f6368;
+  margin-bottom: 0.5rem;
+}
+
+.zoneBar {
+  height: 8px;
+  background: #f1f3f4;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.zoneBarFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+/* --- Dispatch Panel --- */
+.dispatchPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.staffMember {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #f8f9fa;
+  transition: background 0.15s;
+}
+
+.staffMember:hover {
+  background: #f1f3f4;
+}
+
+.staffAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e6f4ea, #d4edda);
+  color: #137333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.staffInfo {
+  flex: 1;
+}
+
+.staffName {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #202124;
+}
+
+.staffRole {
+  font-size: 0.7rem;
+  color: #80868b;
+}
+
+.staffStatusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.staffAvailable {
+  background: #0d904f;
+  box-shadow: 0 0 6px rgba(13, 144, 79, 0.4);
+}
+
+.staffBusy {
+  background: #f9ab00;
+}
+
+.staffOffline {
+  background: #dadce0;
+}
+
+/* --- Quick Stats Bar --- */
+.quickStatsBar {
+  display: flex;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f1f3f4;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.quickStat {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #5f6368;
+}
+
+.quickStatValue {
+  font-weight: 700;
+  color: #202124;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .metricGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .zoneGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,542 @@
+/* ============================================
+   VenueIQ Landing Page — Google "Build with AI" Aesthetic
+   Pastel colors, soft radii, smooth spacing.
+   Animations handled by Framer Motion in JS.
+   ============================================ */
+
+.landing {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f8faff; /* Very light cool background */
+  overflow-x: hidden;
+}
+
+/* --- Top Bar --- */
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 2rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(248, 250, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.topBarScrolled {
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+}
+
+.logoIconWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.logoText {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #202124;
+  letter-spacing: -0.02em;
+}
+
+.logoTextAccent {
+  color: #1a73e8;
+}
+
+.navLinks {
+  display: flex;
+  gap: 2.5rem;
+}
+
+.navLink {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #5f6368;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.navLink:hover {
+  color: #202124;
+}
+
+.topBarActions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btnSecondary {
+  padding: 0.6rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a73e8;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s;
+  text-decoration: none;
+}
+
+.btnSecondary:hover {
+  background: #f1f3f4;
+}
+
+.btnPrimary {
+  padding: 0.6rem 1.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: white;
+  background: #1a73e8;
+  border: none;
+  cursor: pointer;
+  border-radius: 24px;
+  box-shadow: 0 4px 12px rgba(26, 115, 232, 0.25);
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.btnPrimary:hover {
+  background: #1557b0;
+  box-shadow: 0 6px 16px rgba(26, 115, 232, 0.35);
+  transform: translateY(-1px);
+}
+
+/* --- Hero Section --- */
+.hero {
+  padding: 8rem 2rem 4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 90vh;
+  position: relative;
+  text-align: center;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 1px solid #e8eaed;
+  border-radius: 24px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5f6368;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  margin-bottom: 2rem;
+}
+
+.liveIndicator {
+  width: 8px;
+  height: 8px;
+  background: #34a853;
+  border-radius: 50%;
+  position: relative;
+}
+
+.liveIndicator::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid #34a853;
+  opacity: 0.5;
+  animation: pulse 2s infinite ease-out;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+.heroTitle {
+  font-size: clamp(3rem, 6vw, 5rem);
+  font-weight: 800;
+  color: #202124;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  max-width: 900px;
+  margin-bottom: 1.5rem;
+}
+
+.gradientText {
+  background: linear-gradient(120deg, #1a73e8, #a142f4, #ea4335);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.heroDescription {
+  font-size: 1.25rem;
+  color: #5f6368;
+  max-width: 600px;
+  margin-bottom: 3rem;
+  line-height: 1.6;
+}
+
+.heroRoleCards {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.roleCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 20px;
+  border: 2px solid transparent;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.05);
+  text-decoration: none;
+  width: 260px;
+  text-align: left;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.roleCardFan:hover {
+  border-color: #1a73e8;
+  box-shadow: 0 12px 40px rgba(26, 115, 232, 0.15);
+}
+
+.roleCardStaff:hover {
+  border-color: #34a853;
+  box-shadow: 0 12px 40px rgba(52, 168, 83, 0.15);
+}
+
+.roleIconWrapper {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.fanIcon { background: #e8f0fe; color: #1a73e8; }
+.staffIcon { background: #e6f4ea; color: #137333; }
+
+.roleTitle {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #202124;
+  margin-bottom: 0.25rem;
+}
+
+.roleDesc {
+  font-size: 0.9rem;
+  color: #5f6368;
+}
+
+/* --- Features Bento Grid --- */
+.featuresSection {
+  padding: 6rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.sectionHeader {
+  text-align: center;
+  margin-bottom: 4rem;
+}
+
+.sectionTitle {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #202124;
+  letter-spacing: -0.02em;
+}
+
+.bentoGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 280px;
+  gap: 1.5rem;
+}
+
+.bentoItem {
+  border-radius: 28px;
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  border: 1px solid rgba(0,0,0,0.03);
+}
+
+.bentoLarge {
+  grid-column: span 2;
+}
+
+.bentoContent {
+  position: relative;
+  z-index: 2;
+}
+
+.bentoTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #202124;
+  margin-bottom: 0.5rem;
+}
+
+.bentoDesc {
+  font-size: 1rem;
+  color: #5f6368;
+  max-width: 80%;
+  line-height: 1.5;
+}
+
+.bentoArt {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+/* Pastel Color Variations */
+.bgBlue { background: #e8f0fe; }
+.bgGreen { background: #e6f4ea; }
+.bgYellow { background: #fef7e0; }
+.bgPurple { background: #f3e8fd; }
+.bgRed { background: #fce8e6; }
+.bgDark { background: #202124; }
+
+.bgDark .bentoTitle { color: white; }
+.bgDark .bentoDesc { color: #9aa0a6; }
+
+/* Dashboard Art specifically */
+.dashVisual {
+  position: absolute;
+  bottom: -20px;
+  right: -20px;
+  width: 300px;
+  height: 200px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dashBarRow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dashBar {
+  height: 16px;
+  border-radius: 8px;
+  flex: 1;
+  background: #f1f3f4;
+  overflow: hidden;
+}
+
+.dashBarFill {
+  height: 100%;
+  border-radius: 8px;
+}
+
+/* --- Twin Section --- */
+.twinSection {
+  padding: 6rem 2rem;
+  background: white;
+  overflow: hidden;
+}
+
+.twinContainer {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+
+.twinVisualContainer {
+  position: relative;
+  height: 500px;
+  background: #f8faff;
+  border-radius: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e8eaed;
+}
+
+.twinTitle {
+  font-size: 3rem;
+  font-weight: 800;
+  color: #202124;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.twinDesc {
+  font-size: 1.15rem;
+  color: #5f6368;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+/* Points List */
+.pointsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.pointItem {
+  display: flex;
+  gap: 1rem;
+}
+
+.pointIcon {
+  width: 32px;
+  height: 32px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pointTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #202124;
+  margin-bottom: 0.25rem;
+}
+
+.pointDesc {
+  font-size: 0.95rem;
+  color: #5f6368;
+}
+
+/* --- CTA Footer --- */
+.ctaFooter {
+  background: #202124;
+  padding: 6rem 2rem;
+  text-align: center;
+}
+
+.ctaBox {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.ctaTitle {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+}
+
+.ctaDesc {
+  font-size: 1.25rem;
+  color: #9aa0a6;
+  margin-bottom: 3rem;
+}
+
+.ctaFinalButtons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.btnWhite {
+  background: white;
+  color: #202124;
+  padding: 1rem 2rem;
+  border-radius: 30px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-decoration: none;
+  transition: transform 0.2s;
+}
+
+.btnWhite:hover {
+  transform: translateY(-2px);
+}
+
+.btnOutline {
+  background: transparent;
+  color: white;
+  border: 2px solid rgba(255,255,255,0.3);
+  padding: 1rem 2rem;
+  border-radius: 30px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.btnOutline:hover {
+  border-color: white;
+  background: rgba(255,255,255,0.1);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .bentoGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .twinContainer {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .bentoGrid {
+    grid-template-columns: 1fr;
+  }
+  .bentoLarge {
+    grid-column: span 1;
+  }
+  .navLinks {
+    display: none;
+  }
+  .heroTitle {
+    font-size: 2.5rem;
+  }
+}
