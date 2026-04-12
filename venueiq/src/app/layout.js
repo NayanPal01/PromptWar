@@ -1,18 +1,11 @@
-import { Outfit, Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+const plusJakarta = Plus_Jakarta_Sans({
+  variable: "--font-primary",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  display: "swap",
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap",
 });
 
@@ -40,17 +33,19 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${outfit.variable} ${inter.variable}`}>
+    <html lang="en" className={`${plusJakarta.variable}`} data-scroll-behavior="smooth">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#1a73e8" />
       </head>
       <body>
-        <a href="#main-content" className="sr-only" id="skip-nav">
+        <a href="#main-content" className="skip-to-main" id="skip-nav">
           Skip to main content
         </a>
         <AuthProvider>
-          <main id="main-content">{children}</main>
+          <main id="main-content" role="main" aria-label="VenueIQ Application">
+            {children}
+          </main>
         </AuthProvider>
       </body>
     </html>

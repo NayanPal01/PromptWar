@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Users, Timer, ShieldAlert, Map, Sparkles, Accessibility } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 import styles from "./page.module.css";
 
 /* ---- Reusable Motion Components ---- */
@@ -141,6 +142,7 @@ export default function LandingPage() {
   const { scrollY } = useScroll();
   const y1 = useTransform(scrollY, [0, 1000], [0, -100]);
   const y2 = useTransform(scrollY, [0, 1000], [0, 150]);
+  const { user, role, loading } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -166,10 +168,20 @@ export default function LandingPage() {
         </nav>
 
         <div className={styles.topBarActions}>
-          <Link href="/auth" className={styles.btnSecondary}>Sign In</Link>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Link href="/auth" className={styles.btnPrimary}>Get Started</Link>
-          </motion.div>
+          {loading ? null : user ? (
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link href={role === "host" ? "/host" : role === "staff" ? "/staff" : "/events"} className={styles.btnPrimary}>
+                Dashboard
+              </Link>
+            </motion.div>
+          ) : (
+            <>
+              <Link href="/auth" className={styles.btnSecondary}>Sign In</Link>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Link href="/auth" className={styles.btnPrimary}>Get Started</Link>
+              </motion.div>
+            </>
+          )}
         </div>
       </header>
 
@@ -331,7 +343,7 @@ export default function LandingPage() {
       </section>
 
       {/* ===== Twin Details Section ===== */}
-      <section className={styles.twinSection}>
+      <section className={styles.twinSection} id="intelligence">
         <div className={styles.twinContainer}>
           <FadeIn>
             <div>
@@ -395,7 +407,7 @@ export default function LandingPage() {
       </section>
 
       {/* ===== CTA Footer ===== */}
-      <footer className={styles.ctaFooter}>
+      <footer className={styles.ctaFooter} id="technology">
         <div className={styles.ctaBox}>
           <FadeIn>
             <h2 className={styles.ctaTitle}>Ready to transform your venue?</h2>

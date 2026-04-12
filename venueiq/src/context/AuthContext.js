@@ -23,7 +23,7 @@ const AuthContext = createContext({});
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null); // "fan" | "staff"
+  const [role, setRole] = useState(null); // "fan" | "staff" | "host"
   const [loading, setLoading] = useState(true);
 
   // Listen for auth state changes
@@ -57,6 +57,7 @@ export function AuthProvider({ children }) {
         displayName: displayName || firebaseUser.displayName || "User",
         role: userRole,
         photoURL: firebaseUser.photoURL || null,
+        events: [],
         createdAt: serverTimestamp(),
       });
     }

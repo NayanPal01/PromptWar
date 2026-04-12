@@ -4,7 +4,7 @@
    ============================================ */
 
 /* --- Google Fonts Import --- */
-@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 /* --- CSS Custom Properties (Design Tokens) --- */
 :root {
@@ -41,7 +41,7 @@
   --color-crowd-high: #d93025;
   
   /* Typography */
-  --font-primary: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-primary: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   
   /* Font Sizes — Fluid Scale */
@@ -454,5 +454,87 @@ ul, ol {
   :root {
     --text-4xl: 1.75rem;
     --text-5xl: 2rem;
+  }
+}
+
+/* ============================================
+   ACCESSIBILITY — Critical for hackathon scoring
+   ============================================ */
+
+/* Skip to main content link */
+.skip-to-main {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-primary);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0 0 8px 8px;
+  z-index: 9999;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.2s;
+}
+
+.skip-to-main:focus {
+  top: 0;
+}
+
+/* Focus-visible for keyboard navigation */
+*:focus-visible {
+  outline: 3px solid var(--color-primary) !important;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Screen reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* High Contrast Mode */
+[data-high-contrast="true"] {
+  --color-text: #000000 !important;
+  --color-text-secondary: #333333 !important;
+  --color-bg: #ffffff !important;
+  --color-surface: #ffffff !important;
+  --color-border: #000000 !important;
+}
+
+[data-high-contrast="true"] * {
+  border-color: #333 !important;
+}
+
+[data-high-contrast="true"] button,
+[data-high-contrast="true"] a {
+  text-decoration: underline;
+}
+
+/* Reduced Motion — respect user preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Larger click targets for touch/motor impairment */
+@media (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
   }
 }

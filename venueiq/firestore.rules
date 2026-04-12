@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===========================================
+    // USER PROFILES
+    // ===========================================
+    match /users/{userId} {
+      // Users can read/write their own profile
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Staff/host can read any user profile (for attendee lists)
+      allow read: if request.auth != null;
+    }
+
+    // ===========================================
+    // EVENTS
+    // ===========================================
+    match /events/{eventId} {
+      // Anyone authenticated can read events (for event browser)
+      allow read: if request.auth != null;
+      
+      // Only host can create events
+      allow create: if request.auth != null;
+      
+      // Only the host who created the event can update/delete it
+      allow update, delete: if request.auth != null && 
+        resource.data.hostId == request.auth.uid;
+
+      // ===========================================
+      // EVENT SUBCOLLECTIONS
+      // ===========================================
+      
+      // Gates — readable by all auth users, writable by host or system
+      match /gates/{gateId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      // Zones — readable by all auth users
+      match /zones/{zoneId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      // Stalls (food + restrooms) — readable by all auth users
+      match /stalls/{stallId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      // Alerts — anyone can create (for SOS), host/staff can update
+      match /alerts/{alertId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+      }
+
+      // Staff — readable by all, writable by host
+      match /staff/{staffId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      // Stats — readable by all, writable by system/host
+      match /stats/{statId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      // Check-ins — anyone can create (to check in), readable by host/staff
+      match /checkins/{checkinId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null && 
+          resource.data.userId == request.auth.uid;
+      }
+    }
+  }
+}

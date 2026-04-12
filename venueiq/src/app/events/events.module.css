@@ -1,0 +1,338 @@
+/* Event Browser Styles — VenueIQ */
+
+.browserShell {
+  min-height: 100vh;
+  background: #f8f9fa;
+}
+
+.browserNav {
+  background: white;
+  border-bottom: 1px solid #e8eaed;
+  padding: 0.75rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.browserLogo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #202124;
+}
+
+.browserLogoIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #4285f4, #1a73e8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.browserNavRight {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.navBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f3f4;
+  color: #5f6368;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.navBtn:hover {
+  background: #e8eaed;
+}
+
+/* Hero */
+.hero {
+  text-align: center;
+  padding: 3rem 2rem 2rem;
+  background: linear-gradient(180deg, #e8f0fe 0%, #f8f9fa 100%);
+}
+
+.heroTitle {
+  font-size: 2rem;
+  font-weight: 900;
+  color: #202124;
+  margin-bottom: 0.5rem;
+}
+
+.heroDesc {
+  font-size: 1rem;
+  color: #5f6368;
+  max-width: 500px;
+  margin: 0 auto 1.5rem;
+}
+
+.searchContainer {
+  max-width: 500px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #80868b;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 0.85rem 1rem 0.85rem 2.8rem;
+  border: 1.5px solid #e8eaed;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  color: #202124;
+  background: white;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+
+.searchInput:focus {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+}
+
+/* Events */
+.eventsContainer {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem 2rem 3rem;
+}
+
+.eventsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.eventCard {
+  background: white;
+  border-radius: 14px;
+  border: 1.5px solid #e8eaed;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.eventCard:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  border-color: #dadce0;
+}
+
+.eventCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.eventCardIcon {
+  font-size: 2rem;
+}
+
+.eventCardType {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #80868b;
+  background: #f1f3f4;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.eventCardTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #202124;
+  margin-bottom: 0.3rem;
+}
+
+.eventCardVenue {
+  font-size: 0.85rem;
+  color: #5f6368;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.eventCardMeta {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: #80868b;
+  margin-bottom: 0.75rem;
+}
+
+.eventCardMeta span {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.eventCardAction {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a73e8;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f3f4;
+}
+
+/* Empty */
+.emptyState {
+  text-align: center;
+  padding: 3rem;
+}
+
+/* Modal */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal {
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modalClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f3f4;
+  color: #5f6368;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ticketInputGroup {
+  position: relative;
+  margin-bottom: 0.75rem;
+}
+
+.ticketIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #80868b;
+}
+
+.ticketInput {
+  width: 100%;
+  padding: 0.85rem 1rem 0.85rem 2.8rem;
+  border: 2px solid #e8eaed;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #202124;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  outline: none;
+  text-align: center;
+  font-family: inherit;
+}
+
+.ticketInput:focus {
+  border-color: #1a73e8;
+}
+
+.errorMsg {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: #fce8e6;
+  color: #c5221f;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.joinBtn {
+  width: 100%;
+  padding: 0.85rem;
+  background: #1a73e8;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.joinBtn:hover {
+  background: #1557b0;
+}
+
+.joinBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 2rem 1rem 1.5rem;
+  }
+  .heroTitle {
+    font-size: 1.5rem;
+  }
+  .eventsContainer {
+    padding: 1rem;
+  }
+  .eventsGrid {
+    grid-template-columns: 1fr;
+  }
+  .browserNav {
+    padding: 0.75rem 1rem;
+  }
+}

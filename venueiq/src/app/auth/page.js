@@ -33,7 +33,7 @@ export default function AuthPage() {
       } else {
         await login(email, password);
       }
-      router.push(role === "staff" ? "/staff" : "/dashboard");
+      router.push(role === "host" ? "/host" : role === "staff" ? "/staff" : "/events");
     } catch (err) {
       setError(
         err.code === "auth/email-already-in-use"
@@ -54,7 +54,7 @@ export default function AuthPage() {
     setLoading(true);
     try {
       await googleLogin(role);
-      router.push(role === "staff" ? "/staff" : "/dashboard");
+      router.push(role === "host" ? "/host" : role === "staff" ? "/staff" : "/events");
     } catch (err) {
       setError("Google sign-in failed. Please try again.");
     } finally {
@@ -77,12 +77,16 @@ export default function AuthPage() {
             transition={{ delay: 0.2 }}
           >
             <h2 className={styles.leftTitle}>
-              {role === "staff"
+              {role === "host"
+                ? "Create & manage venues."
+                : role === "staff"
                 ? "Command your venue."
                 : "Navigate like a pro."}
             </h2>
             <p className={styles.leftDesc}>
-              {role === "staff"
+              {role === "host"
+                ? "Set up events, configure venues with templates, monitor real-time crowd data, and coordinate your team."
+                : role === "staff"
                 ? "Real-time crowd monitoring, incident dispatch, and operational intelligence — all in one dashboard."
                 : "Skip queues, find the best food stalls, get live crowd updates, and stay safe at every event."}
             </p>
@@ -101,7 +105,7 @@ export default function AuthPage() {
           >
             <motion.ellipse
               cx="130" cy="100" rx="110" ry="70"
-              stroke={role === "staff" ? "#34a853" : "#4285f4"}
+              stroke={role === "host" ? "#f9ab00" : role === "staff" ? "#34a853" : "#4285f4"}
               strokeWidth="2"
               fill="none"
               initial={{ pathLength: 0 }}
@@ -110,7 +114,7 @@ export default function AuthPage() {
             />
             <motion.ellipse
               cx="130" cy="100" rx="70" ry="40"
-              stroke={role === "staff" ? "#34a853" : "#4285f4"}
+              stroke={role === "host" ? "#f9ab00" : role === "staff" ? "#34a853" : "#4285f4"}
               strokeWidth="1.5"
               fill="none"
               opacity="0.5"
@@ -120,13 +124,13 @@ export default function AuthPage() {
             />
             <motion.circle
               cx="130" cy="100" r="5"
-              fill={role === "staff" ? "#34a853" : "#4285f4"}
+              fill={role === "host" ? "#f9ab00" : role === "staff" ? "#34a853" : "#4285f4"}
               animate={{ scale: [1, 1.5, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
             />
             <motion.circle
               r="4"
-              fill={role === "staff" ? "#34a853" : "#4285f4"}
+              fill={role === "host" ? "#f9ab00" : role === "staff" ? "#34a853" : "#4285f4"}
               opacity="0.7"
               animate={{ cx: [60, 200, 130, 60], cy: [80, 120, 60, 80] }}
               transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
@@ -165,15 +169,16 @@ export default function AuthPage() {
               onClick={() => setRole("fan")}
               type="button"
             >
-              🎟️ Fan
+              🎟️ Attendee
             </button>
             <button
-              className={`${styles.roleBtn} ${role === "staff" ? styles.roleBtnActive : ""}`}
-              onClick={() => setRole("staff")}
+              className={`${styles.roleBtn} ${role === "host" ? styles.roleBtnActive : ""}`}
+              onClick={() => setRole("host")}
               type="button"
             >
-              🛡️ Staff
+              🎯 Host
             </button>
+
           </div>
 
           {/* Google Sign-In */}

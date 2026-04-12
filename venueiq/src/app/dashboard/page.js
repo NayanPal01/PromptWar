@@ -1,27 +1,43 @@
 "use client";
 
 /**
- * Fan Dashboard — VenueIQ
+ * Fan Dashboard — VenueIQ (Multi-Event Architecture)
  * 
- * The main fan experience hub. Features:
- * - Real-time venue stats (crowd count, wait times, active alerts)
- * - Interactive venue map with live crowd heatmap
- * - Live gate crowd indicators (F5)
- * - Queue dashboard for food & restrooms (F10)
- * - SOS emergency button (F14)
- * - Accessibility toggle (F3)
+ * Fully dynamic, event-scoped dashboard. All data from Firestore.
+ * Features:
+ * - Real-time venue stats from events/{eventId}/stats
+ * - Dynamic venue map rendered from template + Firestore gates/zones
+ * - Live gate crowd indicators from events/{eventId}/gates
+ * - Queue dashboard from events/{eventId}/stalls
+ * - SOS emergency writes to events/{eventId}/alerts
+ * - Accessibility toggle
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import {
+  getEvent,
+  onEventGatesSnapshot,
+  onEventStallsSnapshot,
+  onEventStatsSnapshot,
+  onEventZonesSnapshot,
+  createEventAlert,
+  checkEventAccess,
+  createOrder,
+  onOrdersSnapshot,
+} from "@/lib/eventService";
+import { checkInAtGate, isCheckedIn, getUserCheckin, updateLiveLocation, onCheckinsSnapshot } from "@/lib/checkinService";
+
+const LiveMapImpl = dynamic(() => import("@/components/LiveMapImpl"), { ssr: false });
+import { VENUE_TEMPLATES } from "@/lib/venueTemplates";
+import {
   Map, LayoutDashboard, UtensilsCrossed, Navigation,
-  ShieldAlert, MessageSquare, Settings, LogOut, Menu, X,
+  ShieldAlert, MessageSquare, LogOut, Menu, X,
   Bell, Accessibility, Users, Timer, TrendingUp, TrendingDown,
-  Flame, Droplets, AlertTriangle, ChevronRight, Phone
+  Flame, Droplets, AlertTriangle, Phone, CheckCircle, Send, Sparkles, DoorOpen, MapPin, HeartPulse, Baby, CheckSquare, Info
 } from "lucide-react";
 import styles from "./dashboard.module.css";
 
@@ -32,34 +48,8 @@ import styles from "./dashboard.module.css";
 function predictWaitTime(queueLength, avgServiceTimeSec, activeCounters) {
   if (activeCounters <= 0) return Infinity;
   const rawWait = (queueLength * avgServiceTimeSec) / activeCounters;
-  return Math.round(rawWait / 60); // Convert to minutes
+  return Math.round(rawWait / 60);
 }
-
-/* ============================================
-   SIMULATED REAL-TIME DATA
-   In production, these come from Firestore real-time listeners
-   ============================================ */
-const INITIAL_GATES = [
-  { id: "A", name: "Gate A", crowd: 0.3, waitMin: 5, section: "North", recommended: true },
-  { id: "B", name: "Gate B", crowd: 0.7, waitMin: 15, section: "East", recommended: false },
-  { id: "C", name: "Gate C", crowd: 0.5, waitMin: 10, section: "South", recommended: false },
-  { id: "D", name: "Gate D", crowd: 0.9, waitMin: 25, section: "West", recommended: false },
-  { id: "E", name: "Gate E", crowd: 0.2, waitMin: 3, section: "North-East", recommended: true },
-];
-
-const INITIAL_FOOD_STALLS = [
-  { id: 1, name: "Samosa Central", type: "food", queue: 12, avgService: 45, counters: 3, icon: "🥟" },
-  { id: 2, name: "Biryani House", type: "food", queue: 8, avgService: 90, counters: 2, icon: "🍚" },
-  { id: 3, name: "Pizza Corner", type: "food", queue: 5, avgService: 60, counters: 2, icon: "🍕" },
-  { id: 4, name: "Chai Point", type: "food", queue: 18, avgService: 30, counters: 4, icon: "☕" },
-  { id: 5, name: "Juice Bar", type: "food", queue: 3, avgService: 40, counters: 1, icon: "🥤" },
-];
-
-const INITIAL_RESTROOMS = [
-  { id: 1, name: "Restroom A (North)", type: "restroom", queue: 6, avgService: 120, counters: 8, icon: "🚻", accessible: true },
-  { id: 2, name: "Restroom B (East)", type: "restroom", queue: 14, avgService: 120, counters: 6, icon: "🚻", accessible: false },
-  { id: 3, name: "Restroom C (South)", type: "restroom", queue: 2, avgService: 120, counters: 10, icon: "🚻", accessible: true },
-];
 
 function getCrowdStatus(level) {
   if (level < 0.4) return { label: "Low", color: "#0d904f", bg: "#e6f4ea", style: styles.gateStatusLow };
@@ -68,98 +58,119 @@ function getCrowdStatus(level) {
 }
 
 /* ============================================
-   VENUE MAP COMPONENT — Interactive SVG (F7)
+   DYNAMIC VENUE MAP — renders from template + live data
    ============================================ */
-function VenueMap({ gates, accessibilityMode }) {
-  const gatePositions = [
-    { id: "A", cx: 200, cy: 60 },
-    { id: "B", cx: 340, cy: 150 },
-    { id: "C", cx: 280, cy: 290 },
-    { id: "D", cx: 60, cy: 220 },
-    { id: "E", cx: 100, cy: 100 },
-  ];
+function DynamicVenueMap({ template, gates, zones, accessibilityMode }) {
+  const tmpl = VENUE_TEMPLATES[template] || VENUE_TEMPLATES.stadium;
 
-  const zoneData = [
-    { cx: 200, cy: 170, r: 55, crowd: 0.7, label: "Zone A" },
-    { cx: 130, cy: 200, r: 40, crowd: 0.3, label: "Zone B" },
-    { cx: 270, cy: 200, r: 45, crowd: 0.9, label: "Zone C" },
-    { cx: 200, cy: 250, r: 35, crowd: 0.5, label: "Zone D" },
-  ];
+  // Map gate positions — match by index (gate order matches template positions)
+  const mappedGates = tmpl.gatePositions.map((pos, i) => ({
+    ...pos,
+    data: gates[i] || null,
+  }));
+
+  // Map zone positions
+  const mappedZones = tmpl.zonePositions.map((pos, i) => ({
+    ...pos,
+    data: zones[i] || null,
+  }));
 
   return (
     <div className={styles.venueMapContainer}>
-      <svg viewBox="0 0 400 350" className={styles.venueMapSvg}>
-        {/* Stadium Outline */}
-        <motion.ellipse
-          cx="200" cy="175" rx="170" ry="130"
-          fill="none" stroke="#dadce0" strokeWidth="3"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 1.5, ease: "easeInOut" }}
-        />
-        <motion.ellipse
-          cx="200" cy="175" rx="120" ry="85"
-          fill="none" stroke="#e8eaed" strokeWidth="2"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 1.5, delay: 0.3 }}
-        />
-        {/* Playing Field */}
-        <motion.rect
-          x="145" y="140" width="110" height="70" rx="8"
-          fill="#e6f4ea" stroke="#34a853" strokeWidth="1.5"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.8 }}
-        />
-        <line x1="200" y1="140" x2="200" y2="210" stroke="#34a853" strokeWidth="1" />
-        <circle cx="200" cy="175" r="15" fill="none" stroke="#34a853" strokeWidth="1" />
-
-        {/* Crowd Heat Zones */}
-        {zoneData.map((zone, i) => {
-          const status = getCrowdStatus(zone.crowd);
+      <svg viewBox={tmpl.svgViewBox} className={styles.venueMapSvg}>
+        {/* Outlines */}
+        {tmpl.outlines.map((outline, i) => {
+          if (outline.type === "ellipse") {
+            return (
+              <motion.ellipse
+                key={`o-${i}`}
+                cx={outline.cx} cy={outline.cy} rx={outline.rx} ry={outline.ry}
+                fill="none" stroke="#dadce0" strokeWidth={i === 0 ? 3 : 2}
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 1.5, delay: i * 0.3 }}
+              />
+            );
+          }
           return (
-            <motion.g key={i}>
-              <motion.circle
-                cx={zone.cx} cy={zone.cy} r={zone.r}
-                fill={status.color}
-                opacity={0.15}
+            <motion.rect
+              key={`o-${i}`}
+              x={outline.x} y={outline.y} width={outline.w} height={outline.h} rx={outline.rx || 8}
+              fill="none" stroke="#dadce0" strokeWidth={i === 0 ? 3 : 2}
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 1.5, delay: i * 0.3 }}
+            />
+          );
+        })}
+
+        {/* Center (Field/Stage) */}
+        {tmpl.center && (
+          <motion.g
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.8 }}
+          >
+            <rect
+              x={tmpl.center.x} y={tmpl.center.y}
+              width={tmpl.center.w} height={tmpl.center.h}
+              rx={8} fill="#e6f4ea" stroke="#34a853" strokeWidth="1.5"
+            />
+            <text
+              x={tmpl.center.x + tmpl.center.w / 2}
+              y={tmpl.center.y + tmpl.center.h / 2 + 4}
+              textAnchor="middle" fontSize="9" fontWeight="600" fill="#34a853"
+            >
+              {tmpl.center.label}
+            </text>
+          </motion.g>
+        )}
+
+        {/* Zone heat blobs */}
+        {mappedZones.map((mz, i) => {
+          const density = mz.data?.density || 0.3;
+          const status = getCrowdStatus(density);
+          return (
+            <motion.g key={`z-${i}`}>
+              <motion.ellipse
+                cx={mz.cx} cy={mz.cy} rx={mz.rx} ry={mz.ry}
+                fill={status.color} opacity={0.15}
                 animate={{
-                  r: [zone.r, zone.r + 5, zone.r],
+                  rx: [mz.rx, mz.rx + 4, mz.rx],
                   opacity: [0.1, 0.25, 0.1],
                 }}
                 transition={{ duration: 3 + i, repeat: Infinity, ease: "easeInOut" }}
               />
               <text
-                x={zone.cx} y={zone.cy + 4}
-                textAnchor="middle"
-                fontSize="9" fontWeight="600"
+                x={mz.cx} y={mz.cy + 4}
+                textAnchor="middle" fontSize="8" fontWeight="600"
                 fill={status.color} opacity={0.8}
               >
-                {zone.label}
+                {mz.data?.name || `Zone ${i + 1}`}
               </text>
             </motion.g>
           );
         })}
 
-        {/* Gate Markers */}
-        {gatePositions.map((pos) => {
-          const gate = gates.find(g => g.id === pos.id);
-          if (!gate) return null;
-          const status = getCrowdStatus(gate.crowd);
+        {/* Gate markers */}
+        {mappedGates.map((mg, i) => {
+          if (!mg.data) return null;
+          const status = getCrowdStatus(mg.data.crowd || 0);
+          const isRecommended = mg.data.recommended;
           return (
-            <motion.g key={pos.id}
+            <motion.g
+              key={`g-${i}`}
               initial={{ opacity: 0, scale: 0 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5 + gatePositions.indexOf(pos) * 0.1 }}
+              transition={{ delay: 0.5 + i * 0.1 }}
             >
-              <circle cx={pos.cx} cy={pos.cy} r="16" fill="white" stroke={status.color} strokeWidth="2.5" />
-              <text x={pos.cx} y={pos.cy + 4} textAnchor="middle" fontSize="10" fontWeight="700" fill={status.color}>
-                {pos.id}
+              <circle cx={mg.cx} cy={mg.cy} r="16" fill="white" stroke={status.color} strokeWidth="2.5" />
+              <text x={mg.cx} y={mg.cy + 4} textAnchor="middle" fontSize="10" fontWeight="700" fill={status.color}>
+                {mg.label || (mg.data.name || "").replace("Gate ", "")}
               </text>
-              {gate.recommended && (
+              {isRecommended && (
                 <motion.circle
-                  cx={pos.cx + 12} cy={pos.cy - 12} r="5"
+                  cx={mg.cx + 12} cy={mg.cy - 12} r="5"
                   fill="#1a73e8"
                   animate={{ scale: [1, 1.3, 1] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
@@ -169,16 +180,16 @@ function VenueMap({ gates, accessibilityMode }) {
           );
         })}
 
-        {/* Accessibility markers */}
+        {/* Accessibility overlays */}
         {accessibilityMode && (
           <>
             <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }}>
-              <rect x="90" y="260" width="50" height="18" rx="4" fill="#7627bb" opacity="0.8" />
-              <text x="115" y="272" textAnchor="middle" fontSize="7" fontWeight="600" fill="white">♿ Ramp</text>
+              <rect x="60" y="260" width="50" height="18" rx="4" fill="#7627bb" opacity="0.8" />
+              <text x="85" y="272" textAnchor="middle" fontSize="7" fontWeight="600" fill="white">♿ Ramp</text>
             </motion.g>
             <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2 }}>
-              <rect x="280" y="90" width="55" height="18" rx="4" fill="#7627bb" opacity="0.8" />
-              <text x="307" y="102" textAnchor="middle" fontSize="7" fontWeight="600" fill="white">♿ Elevator</text>
+              <rect x="280" y="80" width="55" height="18" rx="4" fill="#7627bb" opacity="0.8" />
+              <text x="307" y="92" textAnchor="middle" fontSize="7" fontWeight="600" fill="white">♿ Elevator</text>
             </motion.g>
           </>
         )}
@@ -187,20 +198,16 @@ function VenueMap({ gates, accessibilityMode }) {
       {/* Legend */}
       <div className={styles.mapLegend}>
         <div className={styles.legendItem}>
-          <div className={styles.legendDot} style={{ background: "#0d904f" }} />
-          Low
+          <div className={styles.legendDot} style={{ background: "#0d904f" }} /> Low
         </div>
         <div className={styles.legendItem}>
-          <div className={styles.legendDot} style={{ background: "#f9ab00" }} />
-          Medium
+          <div className={styles.legendDot} style={{ background: "#f9ab00" }} /> Medium
         </div>
         <div className={styles.legendItem}>
-          <div className={styles.legendDot} style={{ background: "#d93025" }} />
-          High
+          <div className={styles.legendDot} style={{ background: "#d93025" }} /> High
         </div>
         <div className={styles.legendItem}>
-          <div className={styles.legendDot} style={{ background: "#1a73e8" }} />
-          Recommended
+          <div className={styles.legendDot} style={{ background: "#1a73e8" }} /> Recommended
         </div>
       </div>
     </div>
@@ -215,10 +222,10 @@ function SOSModal({ onClose, onSubmit }) {
   const [sending, setSending] = useState(false);
 
   const sosTypes = [
-    { id: "medical", label: "🏥 Medical", desc: "Need medical assistance" },
-    { id: "safety", label: "🚨 Safety Threat", desc: "Fight, harassment, etc." },
-    { id: "fire", label: "🔥 Fire/Smoke", desc: "Fire or smoke detected" },
-    { id: "lost", label: "👶 Lost Person", desc: "Child or person lost" },
+    { id: "medical", label: "Medical", icon: <HeartPulse size={24} color="#d93025" />, desc: "Need medical assistance" },
+    { id: "safety", label: "Safety Threat", icon: <ShieldAlert size={24} color="#d93025" />, desc: "Fight, harassment, etc." },
+    { id: "fire", label: "Fire/Smoke", icon: <Flame size={24} color="#f9ab00" />, desc: "Fire or smoke detected" },
+    { id: "lost", label: "Lost Person", icon: <Baby size={24} color="#1a73e8" />, desc: "Child or person lost" },
   ];
 
   const handleSubmit = async () => {
@@ -247,7 +254,7 @@ function SOSModal({ onClose, onSubmit }) {
           <AlertTriangle size={20} /> Emergency Alert
         </h3>
         <p className={styles.sosModalDesc}>
-          Select the type of emergency. Staff will be dispatched to your location immediately.
+          Select the type of emergency. Staff will be dispatched immediately.
         </p>
 
         <div className={styles.sosTypeGrid}>
@@ -257,8 +264,8 @@ function SOSModal({ onClose, onSubmit }) {
               className={`${styles.sosTypeBtn} ${sosType === type.id ? styles.sosTypeBtnActive : ""}`}
               onClick={() => setSosType(type.id)}
             >
-              <div style={{ fontSize: "1.5rem", marginBottom: "0.25rem" }}>{type.label.split(" ")[0]}</div>
-              {type.label.split(" ").slice(1).join(" ")}
+              <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "center" }}>{type.icon}</div>
+              {type.label}
             </button>
           ))}
         </div>
@@ -279,10 +286,12 @@ function SOSModal({ onClose, onSubmit }) {
 }
 
 /* ============================================
-   MAIN DASHBOARD PAGE
+   MAIN DASHBOARD PAGE (EVENT-SCOPED)
    ============================================ */
 export default function FanDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const eventId = searchParams.get("eventId");
   const { user, role, loading, logout } = useAuth();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -291,53 +300,250 @@ export default function FanDashboard() {
   const [sosSuccess, setSosSuccess] = useState(false);
   const [accessibilityMode, setAccessibilityMode] = useState(false);
 
-  // Simulated real-time data (Firestore listeners in production)
-  const [gates, setGates] = useState(INITIAL_GATES);
-  const [foodStalls, setFoodStalls] = useState(INITIAL_FOOD_STALLS);
-  const [restrooms, setRestrooms] = useState(INITIAL_RESTROOMS);
+  // Check-in state
+  const [checkedIn, setCheckedIn] = useState(null);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [showCheckinModal, setShowCheckinModal] = useState(false);
+  const [locationShared, setLocationShared] = useState(false);
+
+  // Gate navigation state
+  const [myGate, setMyGate] = useState(null); // assigned gate (ticket gate)
+  const [currentGate, setCurrentGate] = useState(null); // where attendee actually is
+
+  // Food ordering state
+  const [orderNote, setOrderNote] = useState("");
+  const [orderingStall, setOrderingStall] = useState(null);
+  const [myOrders, setMyOrders] = useState([]);
+
+  // AI Chat state
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // Event data
+  const [eventData, setEventData] = useState(null);
+  const [loadingEvent, setLoadingEvent] = useState(true);
+
+  // Live Firestore data
+  const [gates, setGates] = useState([]);
+  const [stalls, setStalls] = useState([]);
+  const [zones, setZones] = useState([]);
+  const [checkins, setCheckins] = useState([]);
   const [venueStats, setVenueStats] = useState({
-    totalAttendees: 34567,
-    avgWaitTime: 8,
-    activeAlerts: 3,
-    crowdDensity: 72,
+    totalAttendees: 0, avgWaitTime: 0, activeAlerts: 0, crowdDensity: 0,
   });
 
-  // Simulate real-time updates every 5 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setGates(prev => prev.map(g => ({
-        ...g,
-        crowd: Math.max(0.1, Math.min(1, g.crowd + (Math.random() - 0.5) * 0.15)),
-        waitMin: Math.max(1, g.waitMin + Math.round((Math.random() - 0.5) * 4)),
-      })));
-      setFoodStalls(prev => prev.map(s => ({
-        ...s,
-        queue: Math.max(0, s.queue + Math.round((Math.random() - 0.5) * 3)),
-      })));
-      setRestrooms(prev => prev.map(r => ({
-        ...r,
-        queue: Math.max(0, r.queue + Math.round((Math.random() - 0.5) * 2)),
-      })));
-      setVenueStats(prev => ({
-        ...prev,
-        totalAttendees: prev.totalAttendees + Math.round((Math.random() - 0.3) * 50),
-        avgWaitTime: Math.max(3, prev.avgWaitTime + Math.round((Math.random() - 0.5) * 2)),
-        crowdDensity: Math.max(40, Math.min(95, prev.crowdDensity + Math.round((Math.random() - 0.5) * 5))),
-      }));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Redirect if not logged in
+  // No eventId → redirect to events browser
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth");
+      return;
     }
-  }, [user, loading, router]);
+    if (!eventId) {
+      router.push("/events");
+      return;
+    }
+  }, [user, loading, router, eventId]);
+
+  // Load event metadata
+  useEffect(() => {
+    if (!eventId) return;
+    (async () => {
+      try {
+        const ev = await getEvent(eventId);
+        if (!ev) {
+          router.push("/events");
+          return;
+        }
+        setEventData(ev);
+      } catch (err) {
+        console.error("Failed to load event:", err);
+      } finally {
+        setLoadingEvent(false);
+      }
+    })();
+  }, [eventId]);
+
+  // Real-time Firestore listeners scoped to this event
+  useEffect(() => {
+    if (!eventId) return;
+    const unsubs = [];
+    try {
+      unsubs.push(onEventGatesSnapshot(eventId, (data) => setGates(data)));
+      unsubs.push(onEventStallsSnapshot(eventId, (data) => setStalls(data)));
+      unsubs.push(onEventZonesSnapshot(eventId, (data) => setZones(data)));
+      unsubs.push(onCheckinsSnapshot(eventId, (data) => setCheckins(data)));
+      unsubs.push(onEventStatsSnapshot(eventId, (data) => {
+        if (data) setVenueStats(data);
+      }));
+      unsubs.push(onOrdersSnapshot(eventId, (data) => {
+        if (user?.uid) setMyOrders(data.filter(o => o.userId === user.uid));
+      }));
+    } catch (err) {
+      console.warn("Firestore listeners failed:", err);
+    }
+    return () => unsubs.forEach(fn => fn && fn());
+  }, [eventId, user]);
+
+  // Check if user already checked in
+  useEffect(() => {
+    if (!eventId || !user?.uid) return;
+    (async () => {
+      try {
+        const checkinObj = await getUserCheckin(eventId, user.uid);
+        setCheckedIn(checkinObj);
+        if (checkinObj?.gateName) {
+          setMyGate(checkinObj.gateName);
+          setCurrentGate(checkinObj.gateName);
+        }
+      } catch {}
+    })();
+  }, [eventId, user]);
+
+  // GPS Live Tracking Logic
+  useEffect(() => {
+    let watchId;
+    if (locationShared && checkedIn && checkedIn.id) {
+      if ("geolocation" in navigator) {
+        watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            updateLiveLocation(eventId, checkedIn.id, latitude, longitude).catch(err => console.warn("Failed sending GPS", err));
+          },
+          (error) => {
+            console.error("GPS error:", error);
+            setLocationShared(false); // auto-turn off on fail
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+    }
+
+    return () => {
+      if (watchId && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [locationShared, checkedIn, eventId]);
+
+  // Handle gate check-in — automatically sets navigation state
+  const handleCheckIn = async (gateId, gateName) => {
+    if (checkedIn || checkingIn) return;
+    setCheckingIn(true);
+    try {
+      await checkInAtGate(eventId, gateId, gateName, user.uid, user.displayName || "Attendee");
+      const checkinObj = await getUserCheckin(eventId, user.uid);
+      setCheckedIn(checkinObj);
+      setMyGate(gateName);       // Auto-set ticket gate
+      setCurrentGate(gateName);  // They're at this gate now
+      setShowCheckinModal(false);
+    } catch (err) {
+      console.error("Check-in failed:", err);
+      setCheckingIn(false);
+    }
+  };
+
+  // AI Chat auto-scroll
+  const chatEndRef = useRef(null);
+  useEffect(() => {
+    if (activeTab === "chat" && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, activeTab, chatLoading]);
+
+  const handleChatSend = async (overrideMsg = null) => {
+    const rawInput = overrideMsg !== null ? overrideMsg : chatInput;
+    if (!rawInput.trim() || chatLoading) return;
+    const userMsg = rawInput.trim();
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", text: userMsg }]);
+    setChatLoading(true);
+
+    // Build live context for Gemini
+    const liveContext = `You are VenueIQ AI Assistant for "${eventData?.eventName}" at "${eventData?.venueName}".
+LIVE VENUE DATA (real-time):
+- Total Attendees Checked In: ${venueStats.totalAttendees || 0}
+- Active Alerts: ${venueStats.activeAlerts || 0}
+- Gates: ${gates.map(g => `${g.name}: ${g.currentCount || 0} people, ~${g.waitMin || 0}min wait, crowd ${Math.round((g.crowd || 0) * 100)}%`).join("; ")}
+- Restrooms: ${stalls.filter(s => s.type === "restroom").map(s => `${s.name}: ${s.queue || 0} in queue${s.accessible ? " (accessible)" : ""}`).join("; ")}
+- Zones: ${zones.map(z => `${z.name}: ${z.current || 0}/${z.capacity || 0} (${Math.round((z.density || 0) * 100)}% full)`).join("; ")}
+
+Answer based on THIS LIVE DATA. Be helpful, concise. If asked about best gate/restroom, recommend the one with least wait. If asked about emergency, tell them to use the SOS button.`;
+
+    const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+    if (!GEMINI_KEY) {
+      setChatMessages(prev => [...prev, { role: "ai", text: "AI features require a Gemini API key. Add NEXT_PUBLIC_GEMINI_API_KEY to your .env.local file." }]);
+      setChatLoading(false);
+      return;
+    }
+
+    try {
+      const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash"];
+      let success = false;
+      let lastError = null;
+      
+      for (const model of modelsToTry) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                { role: "user", parts: [{ text: liveContext }] },
+                { role: "model", parts: [{ text: "I'm VenueIQ AI, ready to help with live venue data. What would you like to know?" }] },
+                ...chatMessages.map(m => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.text }] })),
+                { role: "user", parts: [{ text: userMsg }] },
+              ],
+              generationConfig: { temperature: 0.4, maxOutputTokens: 500 }
+            })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              setChatMessages(prev => [...prev, { role: "ai", text }]);
+              success = true;
+              break;
+            }
+          } else {
+            const errText = await res.text();
+            console.error(`Gemini model ${model} failed:`, errText);
+            try {
+              const parsed = JSON.parse(errText);
+              if (parsed.error?.message) lastError = parsed.error.message;
+            } catch (e) {
+              lastError = errText;
+            }
+          }
+        } catch (e) {
+          console.warn(`Gemini model ${model} failed in chat:`, e.message);
+          lastError = e.message;
+        }
+      }
+      
+      if (!success) {
+        setChatMessages(prev => [...prev, { role: "ai", text: `Sorry, I couldn't connect. Error: ${lastError || "Unknown error"}. Check your API key.` }]);
+      }
+    } catch (err) {
+      console.error("Chat error:", err);
+      setChatMessages(prev => [...prev, { role: "ai", text: `Sorry, an error occurred: ${err.message}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   const handleSOS = async (type) => {
-    // In production: write to Firestore `alerts` collection
-    console.log("SOS Alert:", type, "User:", user?.uid);
+    try {
+      await createEventAlert(eventId, {
+        type,
+        userId: user?.uid,
+        userName: user?.displayName || "Attendee",
+        zone: "Unknown",
+      });
+    } catch (err) {
+      console.error("SOS failed:", err);
+    }
     setSosSuccess(true);
     setTimeout(() => {
       setSosOpen(false);
@@ -345,14 +551,10 @@ export default function FanDashboard() {
     }, 2000);
   };
 
-  if (loading) {
+  if (loading || loadingEvent) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#f8f9fa" }}>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          style={{ textAlign: "center" }}
-        >
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ textAlign: "center" }}>
           <motion.div
             style={{ width: 48, height: 48, border: "3px solid #e8eaed", borderTopColor: "#1a73e8", borderRadius: "50%", margin: "0 auto 1rem" }}
             animate={{ rotate: 360 }}
@@ -364,30 +566,52 @@ export default function FanDashboard() {
     );
   }
 
-  // Sorted food stalls by wait time (shortest first)
+  // Separate food stalls and restrooms
+  const foodStalls = stalls.filter(s => s.type === "food");
+  const restrooms = stalls.filter(s => s.type === "restroom");
+
+  // Sorted by wait time (shortest first)
   const sortedFood = [...foodStalls].map(s => ({
     ...s,
-    waitTime: predictWaitTime(s.queue, s.avgService, s.counters),
+    waitTime: predictWaitTime(s.queue || 0, s.avgService || 60, s.counters || 1),
   })).sort((a, b) => a.waitTime - b.waitTime);
 
   const sortedRestrooms = [...restrooms].map(r => ({
     ...r,
-    waitTime: predictWaitTime(r.queue, r.avgService, r.counters),
+    waitTime: predictWaitTime(r.queue || 0, r.avgService || 120, r.counters || 1),
   })).sort((a, b) => a.waitTime - b.waitTime);
+
+  // Mark recommended gate (lowest wait)
+  const gatesWithRecommend = gates.map(g => ({
+    ...g,
+    recommended: g.recommended || false,
+  }));
+  if (gatesWithRecommend.length > 0) {
+    const bestGate = gatesWithRecommend.reduce((a, b) => (a.waitMin || 99) < (b.waitMin || 99) ? a : b);
+    gatesWithRecommend.forEach(g => { g.recommended = g.id === bestGate.id; });
+  }
+
+  const template = eventData?.template || "stadium";
+  const tmpl = VENUE_TEMPLATES[template] || VENUE_TEMPLATES.stadium;
 
   const navItems = [
     { id: "overview", label: "Overview", icon: <LayoutDashboard size={18} /> },
     { id: "map", label: "Venue Map", icon: <Map size={18} /> },
-    { id: "queues", label: "Food & Queues", icon: <UtensilsCrossed size={18} /> },
+    { id: "live_map", label: "Live GPS Map", icon: <MapPin size={18} /> },
     { id: "navigate", label: "Navigate", icon: <Navigation size={18} /> },
+    { id: "chat", label: "AI Assistant", icon: <Sparkles size={18} /> },
   ];
+
+  const calculatedAvgWaitTime = gates.length > 0 
+    ? Math.round(gates.reduce((sum, g) => sum + (g.waitMin || 0), 0) / gates.length) 
+    : 0;
+  const calculatedCrowdDensity = eventData?.totalCapacity 
+    ? Math.min(100, Math.round(((venueStats.totalAttendees || 0) / eventData.totalCapacity) * 100))
+    : 0;
 
   return (
     <div className={styles.dashboardShell}>
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className={styles.sidebarOverlay} onClick={() => setSidebarOpen(false)} />
-      )}
+      {sidebarOpen && <div className={styles.sidebarOverlay} onClick={() => setSidebarOpen(false)} />}
 
       {/* Sidebar */}
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}>
@@ -396,6 +620,16 @@ export default function FanDashboard() {
           <span className={styles.sidebarLogoText}>
             Venue<span className={styles.sidebarAccent}>IQ</span>
           </span>
+        </div>
+
+        {/* Event Info */}
+        <div style={{ padding: "0 1rem", marginBottom: "0.5rem" }}>
+          <div style={{ padding: "0.6rem", background: "#e8f0fe", borderRadius: "8px", fontSize: "0.75rem" }}>
+            <div style={{ fontWeight: 700, color: "#1a73e8", marginBottom: "0.15rem" }}>
+              {tmpl.icon} {eventData?.eventName}
+            </div>
+            <div style={{ color: "#5f6368" }}>{eventData?.venueName}</div>
+          </div>
         </div>
 
         <nav className={styles.sidebarNav}>
@@ -449,7 +683,7 @@ export default function FanDashboard() {
             )}
             <div className={styles.userInfo}>
               <div className={styles.userName}>{user?.displayName || "User"}</div>
-              <div className={styles.userRole}>{role || "fan"}</div>
+              <div className={styles.userRole}>attendee</div>
             </div>
           </div>
           <button className={`${styles.navItem} ${styles.navItemDanger}`} onClick={logout} style={{ marginTop: "0.5rem" }}>
@@ -461,7 +695,6 @@ export default function FanDashboard() {
 
       {/* Main Content */}
       <div className={styles.mainContent}>
-        {/* Top Bar */}
         <header className={styles.topBar}>
           <div className={styles.topBarLeft}>
             <button className={styles.menuBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -476,6 +709,21 @@ export default function FanDashboard() {
             </h1>
           </div>
           <div className={styles.topBarRight}>
+            {checkedIn && (
+              <button
+                className={styles.accessibilityToggle}
+                onClick={() => setLocationShared(!locationShared)}
+                style={{ 
+                  background: locationShared ? "#e6f4ea" : "#f1f3f4", 
+                  color: locationShared ? "#137333" : "#5f6368",
+                  borderColor: locationShared ? "#137333" : "#e8eaed"
+                }}
+                aria-label="Toggle location sharing"
+              >
+                <MapPin size={16} />
+                {locationShared ? "Sharing GPS" : "Share GPS"}
+              </button>
+            )}
             <div className={styles.liveIndicator}>
               <span className={styles.liveDot} />
               Live
@@ -484,63 +732,124 @@ export default function FanDashboard() {
               className={styles.accessibilityToggle}
               onClick={() => setAccessibilityMode(!accessibilityMode)}
               aria-label="Toggle accessibility mode"
-              title="Accessibility Mode"
             >
               <Accessibility size={16} />
               {accessibilityMode ? "ON" : "OFF"}
             </button>
             <button className={styles.topBarBtn} aria-label="Notifications">
               <Bell size={20} />
-              {venueStats.activeAlerts > 0 && (
-                <span style={{
-                  position: "absolute", top: 6, right: 6,
-                  width: 8, height: 8, background: "#ea4335",
-                  borderRadius: "50%", border: "2px solid white"
-                }} />
-              )}
             </button>
           </div>
         </header>
 
-        {/* Page Content */}
         <div className={styles.pageContent}>
+          {/* CHECK-IN BANNER — This is how real-time crowd data works (hidden for host/staff) */}
+          {role !== "host" && role !== "staff" && (
+            !checkedIn ? (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{ padding: "0.75rem 1rem", background: "linear-gradient(135deg, #e8f0fe, #f0e6ff)", borderRadius: "12px", marginBottom: "1rem", display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #d2b8ff" }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <DoorOpen size={18} color="#1a73e8" />
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "#202124" }}>Check In at your gate</div>
+                    <div style={{ fontSize: "0.75rem", color: "#5f6368" }}>This helps track real-time crowd at each gate</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCheckinModal(true)}
+                  style={{ padding: "0.5rem 1rem", background: "#1a73e8", color: "white", border: "none", borderRadius: "8px", fontWeight: 600, fontSize: "0.85rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.3rem" }}
+                >
+                  <CheckCircle size={14} /> Check In
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                style={{ padding: "0.5rem 1rem", background: "#e6f4ea", borderRadius: "10px", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#137333", fontWeight: 600 }}
+              >
+                <CheckCircle size={16} /> You are checked in. Enjoy the event!
+              </motion.div>
+            )
+          )}
+
+          {/* CHECK-IN GATE SELECTION MODAL */}
+          <AnimatePresence>
+            {showCheckinModal && (
+              <motion.div
+                style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => setShowCheckinModal(false)}
+              >
+                <motion.div
+                  style={{ background: "white", borderRadius: "16px", padding: "1.5rem", maxWidth: "400px", width: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}
+                  initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    <DoorOpen size={18} /> Select your entry gate
+                  </h3>
+                  <p style={{ fontSize: "0.8rem", color: "#5f6368", marginBottom: "1rem" }}>Which gate are you entering from?</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {gates.map(gate => (
+                      <button
+                        key={gate.id}
+                        onClick={() => handleCheckIn(gate.id, gate.name)}
+                        disabled={checkingIn}
+                        style={{ padding: "0.75rem 1rem", border: "1.5px solid #e8eaed", borderRadius: "10px", background: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "inherit", transition: "border-color 0.15s" }}
+                        onMouseOver={(e) => e.currentTarget.style.borderColor = "#1a73e8"}
+                        onMouseOut={(e) => e.currentTarget.style.borderColor = "#e8eaed"}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: "0.9rem", color: "#202124" }}>{gate.name}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#80868b" }}>{gate.section} · {gate.currentCount || 0} people</div>
+                        </div>
+                        <CheckCircle size={16} color="#1a73e8" />
+                      </button>
+                    ))}
+                  </div>
+                  {checkingIn && (
+                    <div style={{ textAlign: "center", padding: "0.5rem", color: "#1a73e8", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+                      Checking in...
+                    </div>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <AnimatePresence mode="wait">
             {/* ===== OVERVIEW TAB ===== */}
             {activeTab === "overview" && (
-              <motion.div
-                key="overview"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                {/* Stats Row */}
+              <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                {/* Stats */}
                 <div className={styles.statsRow}>
                   <motion.div className={styles.statCard} whileHover={{ y: -3 }}>
                     <div className={`${styles.statIcon} ${styles.statIconBlue}`}><Users size={20} /></div>
-                    <div className={styles.statValue}>{venueStats.totalAttendees.toLocaleString()}</div>
+                    <div className={styles.statValue}>{(venueStats.totalAttendees || 0).toLocaleString()}</div>
                     <div className={styles.statLabel}>Total Attendees</div>
-                    <div className={`${styles.statChange} ${styles.statChangeUp}`}><TrendingUp size={10} /> +2.3%</div>
                   </motion.div>
                   <motion.div className={styles.statCard} whileHover={{ y: -3 }}>
                     <div className={`${styles.statIcon} ${styles.statIconGreen}`}><Timer size={20} /></div>
-                    <div className={styles.statValue}>{venueStats.avgWaitTime} min</div>
+                    <div className={styles.statValue}>{calculatedAvgWaitTime} min</div>
                     <div className={styles.statLabel}>Avg Wait Time</div>
-                    <div className={`${styles.statChange} ${styles.statChangeDown}`}><TrendingDown size={10} /> -12%</div>
                   </motion.div>
                   <motion.div className={styles.statCard} whileHover={{ y: -3 }}>
                     <div className={`${styles.statIcon} ${styles.statIconYellow}`}><Flame size={20} /></div>
-                    <div className={styles.statValue}>{venueStats.crowdDensity}%</div>
+                    <div className={styles.statValue}>{calculatedCrowdDensity}%</div>
                     <div className={styles.statLabel}>Crowd Density</div>
                   </motion.div>
                   <motion.div className={styles.statCard} whileHover={{ y: -3 }}>
                     <div className={`${styles.statIcon} ${styles.statIconRed}`}><ShieldAlert size={20} /></div>
-                    <div className={styles.statValue}>{venueStats.activeAlerts}</div>
+                    <div className={styles.statValue}>{venueStats.activeAlerts || 0}</div>
                     <div className={styles.statLabel}>Active Alerts</div>
                   </motion.div>
                 </div>
 
-                {/* Map + Gates Row */}
+                {/* Map + Gates */}
                 <div className={styles.contentGrid}>
                   <div className={`${styles.colSpan8} ${styles.dashCard}`}>
                     <div className={styles.dashCardHeader}>
@@ -549,7 +858,12 @@ export default function FanDashboard() {
                         <Accessibility size={14} /> {accessibilityMode ? "Accessible" : "Standard"}
                       </button>
                     </div>
-                    <VenueMap gates={gates} accessibilityMode={accessibilityMode} />
+                    <DynamicVenueMap
+                      template={template}
+                      gates={gatesWithRecommend}
+                      zones={zones}
+                      accessibilityMode={accessibilityMode}
+                    />
                   </div>
 
                   <div className={`${styles.colSpan4} ${styles.dashCard}`}>
@@ -558,8 +872,8 @@ export default function FanDashboard() {
                     </div>
                     <div className={styles.dashCardBody}>
                       <div className={styles.gateGrid}>
-                        {gates.map(gate => {
-                          const status = getCrowdStatus(gate.crowd);
+                        {gatesWithRecommend.map(gate => {
+                          const status = getCrowdStatus(gate.crowd || 0);
                           return (
                             <motion.div
                               key={gate.id}
@@ -568,7 +882,7 @@ export default function FanDashboard() {
                               style={{ borderColor: gate.recommended ? "#1a73e8" : undefined }}
                             >
                               <div className={styles.gateName}>{gate.name}</div>
-                              <div className={styles.gateWait}>~{gate.waitMin} min</div>
+                              <div className={styles.gateWait}>~{gate.waitMin || 0} min</div>
                               <div className={`${styles.gateStatus} ${status.style}`} />
                               {gate.recommended && (
                                 <span style={{ fontSize: "0.6rem", color: "#1a73e8", fontWeight: 700, marginTop: "0.3rem" }}>
@@ -578,17 +892,22 @@ export default function FanDashboard() {
                             </motion.div>
                           );
                         })}
+                        {gates.length === 0 && (
+                          <p style={{ color: "#80868b", fontSize: "0.85rem", padding: "1rem", textAlign: "center" }}>
+                            No gate data yet
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Queues Row */}
+                {/* Queues */}
                 <div className={styles.contentGrid} style={{ marginTop: "1.5rem" }}>
                   <div className={`${styles.colSpan6} ${styles.dashCard}`}>
                     <div className={styles.dashCardHeader}>
                       <h3 className={styles.dashCardTitle}><UtensilsCrossed size={18} /> Food Stalls</h3>
-                      <span style={{ fontSize: "0.75rem", color: "#80868b" }}>Sorted by wait time</span>
+                      <span style={{ fontSize: "0.75rem", color: "#80868b" }}>Sorted by wait</span>
                     </div>
                     <div className={styles.dashCardBody}>
                       <div className={styles.queueList}>
@@ -596,23 +915,24 @@ export default function FanDashboard() {
                           const status = getCrowdStatus(stall.queue > 12 ? 0.9 : stall.queue > 6 ? 0.6 : 0.2);
                           return (
                             <motion.div key={stall.id} className={styles.queueItem} whileHover={{ x: 3 }}>
-                              <div className={styles.queueIcon} style={{ background: status.bg, fontSize: "1.2rem" }}>
-                                {stall.icon}
+                              <div className={styles.queueIcon} style={{ background: status.bg, color: status.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                {stall.icon || <UtensilsCrossed size={16}/>}
                               </div>
                               <div className={styles.queueInfo}>
                                 <div className={styles.queueName}>{stall.name}</div>
-                                <div className={styles.queueMeta}>{stall.queue} in queue · {stall.counters} counters</div>
+                                <div className={styles.queueMeta}>{stall.queue || 0} in queue · {stall.counters || 1} counters</div>
                               </div>
                               <div className={styles.queueWait}>
-                                <div className={styles.queueWaitTime} style={{ color: status.color }}>
-                                  {stall.waitTime}
-                                </div>
+                                <div className={styles.queueWaitTime} style={{ color: status.color }}>{stall.waitTime}</div>
                                 <div className={styles.queueWaitLabel}>min</div>
                               </div>
                               <div className={styles.queueStatusDot} style={{ background: status.color }} />
                             </motion.div>
                           );
                         })}
+                        {sortedFood.length === 0 && (
+                          <p style={{ color: "#80868b", fontSize: "0.85rem", padding: "1rem", textAlign: "center" }}>No food stalls configured</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -634,28 +954,46 @@ export default function FanDashboard() {
                             const status = getCrowdStatus(room.queue > 10 ? 0.9 : room.queue > 5 ? 0.6 : 0.2);
                             return (
                               <motion.div key={room.id} className={styles.queueItem} whileHover={{ x: 3 }}>
-                                <div className={styles.queueIcon} style={{ background: status.bg, fontSize: "1.2rem" }}>
-                                  {room.icon}
+                                <div className={styles.queueIcon} style={{ background: status.bg, color: status.color, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  {room.icon || <Droplets size={16}/>}
                                 </div>
                                 <div className={styles.queueInfo}>
-                                  <div className={styles.queueName}>
-                                    {room.name}
-                                    {room.accessible && " ♿"}
-                                  </div>
-                                  <div className={styles.queueMeta}>{room.queue} in queue · {room.counters} stalls</div>
+                                  <div className={styles.queueName}>{room.name}{room.accessible && " ♿"}</div>
+                                  <div className={styles.queueMeta}>{room.queue || 0} in queue · {room.counters || 1} stalls</div>
                                 </div>
                                 <div className={styles.queueWait}>
-                                  <div className={styles.queueWaitTime} style={{ color: status.color }}>
-                                    {room.waitTime}
-                                  </div>
+                                  <div className={styles.queueWaitTime} style={{ color: status.color }}>{room.waitTime}</div>
                                   <div className={styles.queueWaitLabel}>min</div>
                                 </div>
                                 <div className={styles.queueStatusDot} style={{ background: status.color }} />
                               </motion.div>
                             );
                           })}
+                        {sortedRestrooms.length === 0 && (
+                          <p style={{ color: "#80868b", fontSize: "0.85rem", padding: "1rem", textAlign: "center" }}>No restrooms configured</p>
+                        )}
                       </div>
                     </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ===== LIVE GPS MAP TAB ===== */}
+            {activeTab === "live_map" && (
+              <motion.div key="livemap" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <div className={styles.dashCard}>
+                  <div className={styles.dashCardHeader}>
+                    <h3 className={styles.dashCardTitle}><MapPin size={18} /> Live OpenStreetMap GPS Tracking</h3>
+                    {locationShared && (
+                      <span style={{ fontSize: "0.75rem", background: "#e6f4ea", color: "#137333", padding: "0.2rem 0.5rem", borderRadius: "12px", fontWeight: "600" }}>Sharing Location</span>
+                    )}
+                  </div>
+                  <div style={{ padding: "1rem" }}>
+                    <p style={{ fontSize: "0.85rem", color: "#5f6368", marginBottom: "1rem" }}>
+                      See real-world attendee flow around the venue. Toggle "Share GPS" at the top to contribute your location securely.
+                    </p>
+                    <LiveMapImpl checkins={checkins} venueName={eventData?.venueName} />
                   </div>
                 </div>
               </motion.div>
@@ -663,133 +1001,171 @@ export default function FanDashboard() {
 
             {/* ===== MAP TAB ===== */}
             {activeTab === "map" && (
-              <motion.div
-                key="map"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
+              <motion.div key="map" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                 <div className={styles.dashCard}>
                   <div className={styles.dashCardHeader}>
                     <h3 className={styles.dashCardTitle}><Map size={18} /> Interactive Venue Map</h3>
-                    <button className={styles.accessibilityToggle} onClick={() => setAccessibilityMode(!accessibilityMode)}>
-                      <Accessibility size={14} /> {accessibilityMode ? "♿ Accessible Routes" : "Standard View"}
-                    </button>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button className={styles.accessibilityToggle} onClick={() => setAccessibilityMode(!accessibilityMode)}>
+                        <Accessibility size={14} /> {accessibilityMode ? "♿ Accessible" : "Standard View"}
+                      </button>
+                    </div>
                   </div>
                   <div style={{ padding: "1rem" }}>
-                    <VenueMap gates={gates} accessibilityMode={accessibilityMode} />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
-            {/* ===== QUEUES TAB ===== */}
-            {activeTab === "queues" && (
-              <motion.div
-                key="queues"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <div className={styles.contentGrid}>
-                  <div className={`${styles.colSpan12} ${styles.dashCard}`}>
-                    <div className={styles.dashCardHeader}>
-                      <h3 className={styles.dashCardTitle}><UtensilsCrossed size={18} /> All Food & Beverage Stalls</h3>
-                    </div>
-                    <div className={styles.dashCardBody}>
-                      <div className={styles.queueList}>
-                        {sortedFood.map(stall => {
-                          const status = getCrowdStatus(stall.queue > 12 ? 0.9 : stall.queue > 6 ? 0.6 : 0.2);
+                    {/* Interactive Gate Grid */}
+                    <div style={{ marginBottom: "1rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", fontWeight: 700, color: "#5f6368", marginBottom: "0.5rem" }}>
+                        Click a gate for details <span style={{color:"#e8eaed"}}>|</span> <DoorOpen size={14} color="#0d904f"/> Your Gate <span style={{color:"#e8eaed"}}>|</span> <MapPin size={14} color="#d93025"/> Current Location
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.5rem" }}>
+                        {gatesWithRecommend.map(g => {
+                          const isMyGate = g.name === myGate;
+                          const isCurrentGate = g.name === currentGate;
+                          const pct = g.estimatedCapacityFlow ? Math.round((g.currentCount || 0) / g.estimatedCapacityFlow * 100) : 0;
+                          const crowdColor = pct > 80 ? "#d93025" : pct > 50 ? "#f9ab00" : "#0d904f";
                           return (
-                            <motion.div key={stall.id} className={styles.queueItem} whileHover={{ x: 3 }}>
-                              <div className={styles.queueIcon} style={{ background: status.bg, fontSize: "1.2rem" }}>
-                                {stall.icon}
+                            <motion.div key={g.id} whileHover={{ scale: 1.04, boxShadow: "0 4px 15px rgba(0,0,0,0.1)" }} whileTap={{ scale: 0.97 }}
+                              style={{
+                                padding: "0.75rem", borderRadius: "12px", cursor: "pointer", transition: "all 0.2s",
+                                border: `2px solid ${isMyGate ? "#0d904f" : isCurrentGate ? "#1a73e8" : g.recommended ? "#f9ab00" : "#e8eaed"}`,
+                                background: isMyGate ? "linear-gradient(135deg, #e6f4ea, #ceead6)" : isCurrentGate ? "linear-gradient(135deg, #e8f0fe, #d2e3fc)" : "white",
+                              }}
+                              onClick={() => {
+                                alert(`${g.name}\n\nWait: ${g.waitMin || 0} min\nChecked In: ${g.currentCount || 0}\nCapacity Flow: ${g.estimatedCapacityFlow || "N/A"}\nCrowd: ${pct}%\n${g.recommended ? "⭐ RECOMMENDED GATE" : ""}\n${isMyGate ? "🎯 This is your ticket gate" : ""}`);
+                              }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginBottom: "0.3rem" }}>
+                                {isMyGate && <DoorOpen size={16} color="#0d904f" />}
+                                {isCurrentGate && <MapPin size={16} color="#d93025" />}
+                                {g.recommended && <span style={{ fontSize: "0.6rem", background: "#fef7e0", color: "#f9ab00", padding: "0.1rem 0.3rem", borderRadius: "4px", fontWeight: 700 }}>★ BEST</span>}
                               </div>
-                              <div className={styles.queueInfo}>
-                                <div className={styles.queueName}>{stall.name}</div>
-                                <div className={styles.queueMeta}>
-                                  {stall.queue} in queue · {stall.counters} counters · Avg service: {stall.avgService}s
-                                </div>
-                              </div>
-                              <div className={styles.queueWait}>
-                                <div className={styles.queueWaitTime} style={{ color: status.color }}>
-                                  {stall.waitTime}
-                                </div>
-                                <div className={styles.queueWaitLabel}>min wait</div>
+                              <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "#202124" }}>{g.name}</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.25rem" }}>
+                                <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: crowdColor }} />
+                                <span style={{ fontSize: "0.7rem", color: "#5f6368" }}>{g.waitMin || 0}min · {g.currentCount || 0} in</span>
                               </div>
                             </motion.div>
                           );
                         })}
                       </div>
                     </div>
-                  </div>
-
-                  <div className={`${styles.colSpan12} ${styles.dashCard}`} style={{ marginTop: 0 }}>
-                    <div className={styles.dashCardHeader}>
-                      <h3 className={styles.dashCardTitle}><Droplets size={18} /> All Restrooms</h3>
-                    </div>
-                    <div className={styles.dashCardBody}>
-                      <div className={styles.queueList}>
-                        {sortedRestrooms.map(room => {
-                          const status = getCrowdStatus(room.queue > 10 ? 0.9 : room.queue > 5 ? 0.6 : 0.2);
-                          return (
-                            <motion.div key={room.id} className={styles.queueItem} whileHover={{ x: 3 }}>
-                              <div className={styles.queueIcon} style={{ background: status.bg, fontSize: "1.2rem" }}>
-                                {room.icon}
-                              </div>
-                              <div className={styles.queueInfo}>
-                                <div className={styles.queueName}>{room.name} {room.accessible && "♿"}</div>
-                                <div className={styles.queueMeta}>{room.queue} in queue · {room.counters} stalls</div>
-                              </div>
-                              <div className={styles.queueWait}>
-                                <div className={styles.queueWaitTime} style={{ color: status.color }}>
-                                  {room.waitTime}
-                                </div>
-                                <div className={styles.queueWaitLabel}>min wait</div>
-                              </div>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <DynamicVenueMap template={template} gates={gatesWithRecommend} zones={zones} accessibilityMode={accessibilityMode} />
                   </div>
                 </div>
               </motion.div>
             )}
 
-            {/* ===== NAVIGATE TAB ===== */}
+
+            {/* ===== NAVIGATE TAB — Gate Selection + Shortest Path ===== */}
             {activeTab === "navigate" && (
-              <motion.div
-                key="navigate"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
+              <motion.div key="navigate" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                 <div className={styles.dashCard}>
                   <div className={styles.dashCardHeader}>
-                    <h3 className={styles.dashCardTitle}><Navigation size={18} /> Smart Navigation</h3>
+                    <h3 className={styles.dashCardTitle}><Navigation size={18} /> Smart Gate Navigation</h3>
                   </div>
-                  <div className={styles.dashCardBody} style={{ textAlign: "center", padding: "3rem" }}>
-                    <motion.div
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      style={{
-                        width: 80, height: 80, borderRadius: 20, background: "#e8f0fe",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        margin: "0 auto 1.5rem", color: "#1a73e8"
-                      }}
-                    >
-                      <Navigation size={36} />
-                    </motion.div>
-                    <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#202124", marginBottom: "0.5rem" }}>
-                      Step-by-Step Directions
-                    </h3>
-                    <p style={{ color: "#5f6368", maxWidth: 400, margin: "0 auto 1.5rem" }}>
-                      Get turn-by-turn navigation to your seat, nearest food stall, or restroom.
-                    </p>
-                    <p style={{ color: "#80868b", fontSize: "0.85rem" }}>
-                      🔜 Coming soon — AR-style seat finder with step-by-step directions
-                    </p>
+                  <div style={{ padding: "1.25rem" }}>
+                    {/* Gate selection */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
+                      <div>
+                        <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#202124", marginBottom: "0.4rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                           <DoorOpen size={14}/> My Ticket Gate (Where I should enter)
+                        </label>
+                        <select value={myGate || ""} onChange={e => setMyGate(e.target.value || null)}
+                          style={{ width: "100%", padding: "0.6rem", borderRadius: "8px", border: "1.5px solid #dadce0", fontSize: "0.85rem", fontFamily: "inherit", background: "white" }}>
+                          <option value="">Select your gate...</option>
+                          {gates.map(g => <option key={g.id} value={g.name}>{g.name} {g.waitMin > 0 ? `(~${g.waitMin} min wait)` : "(No wait)"}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "0.8rem", fontWeight: 700, color: "#202124", marginBottom: "0.4rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                           <MapPin size={14}/> I Am Currently At
+                        </label>
+                        <select value={currentGate || ""} onChange={e => setCurrentGate(e.target.value || null)}
+                          style={{ width: "100%", padding: "0.6rem", borderRadius: "8px", border: "1.5px solid #dadce0", fontSize: "0.85rem", fontFamily: "inherit", background: "white" }}>
+                          <option value="">Select your current location...</option>
+                          {gates.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
+                          <option value="parking">Parking Area</option>
+                          <option value="outside">Outside Venue</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Path recommendation */}
+                    {myGate && currentGate && myGate !== currentGate && (
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        style={{ padding: "1rem", background: "linear-gradient(135deg, #ede9fe, #e8f0fe)", borderRadius: "12px", border: "1px solid #c7d2fe", marginBottom: "1rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                          <Navigation size={20} color="#4f46e5" />
+                          <h4 style={{ fontSize: "1rem", fontWeight: 700, color: "#4f46e5" }}>Route Recommendation</h4>
+                        </div>
+                        <p style={{ fontSize: "0.85rem", color: "#5f6368", marginBottom: "0.75rem" }}>
+                          You are at <strong style={{ color: "#d93025" }}>{currentGate}</strong> but your ticket is for <strong style={{ color: "#0d904f" }}>{myGate}</strong>.
+                        </p>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", padding: "0.4rem 0.8rem", background: "white", borderRadius: "8px", fontSize: "0.85rem", fontWeight: 600 }}>
+                            <span style={{ color: "#d93025", display: "flex", alignItems: "center", gap:"0.2rem" }}><MapPin size={14}/> {currentGate}</span>
+                            <span style={{ color: "#80868b" }}>→</span>
+                            <span style={{ color: "#0d904f", display: "flex", alignItems: "center", gap:"0.2rem" }}><DoorOpen size={14}/> {myGate}</span>
+                          </div>
+                          {(() => {
+                            const fromIdx = gates.findIndex(g => g.name === currentGate);
+                            const toIdx = gates.findIndex(g => g.name === myGate);
+                            // Fallback logic if they select parking/outside
+                            const fIdx = fromIdx !== -1 ? fromIdx : 0;
+                            const tIdx = toIdx !== -1 ? toIdx : 0;
+                            let gatesDiff = Math.abs(fIdx - tIdx);
+                            if (fromIdx === -1) gatesDiff += 2; // Extra distance from outside
+                            
+                            const estMin = gatesDiff * 3 + 2; // ~3 min per gate + base 2 min
+                            const estMeters = estMin * 80;    // ~80m per minute walk
+                            
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                                <span style={{ fontSize: "0.8rem", color: "#4f46e5", fontWeight: 700 }}>
+                                  ~{estMin} min walk ({gatesDiff} gate{gatesDiff !== 1 ? "s" : ""} apart)
+                                </span>
+                                <span style={{ fontSize: "0.75rem", color: "#80868b", fontWeight: 600 }}>
+                                  Shortest Path Distance: ~{estMeters} meters
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                        <p style={{ fontSize: "0.75rem", color: "#80868b", marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                          <Info size={14}/> Follow the outer concourse path. Look for signage pointing to {myGate}.
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {myGate && currentGate && myGate === currentGate && (
+                      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+                        style={{ padding: "1rem", background: "#e6f4ea", borderRadius: "12px", textAlign: "center", border: "1px solid #ceead6" }}>
+                        <CheckCircle size={36} color="#137333" />
+                        <h4 style={{ color: "#137333", fontWeight: 700, marginTop: "0.3rem" }}>You are at the correct gate!</h4>
+                        <p style={{ color: "#5f6368", fontSize: "0.85rem" }}>Head through {myGate} to reach your seat.</p>
+                      </motion.div>
+                    )}
+
+                    {/* Gate status overview */}
+                    <div style={{ marginTop: "1.25rem" }}>
+                      <h4 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#202124", marginBottom: "0.5rem" }}>All Gates Status</h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.5rem" }}>
+                        {gates.map(g => (
+                          <div key={g.id} style={{
+                            padding: "0.6rem", borderRadius: "8px", border: `1.5px solid ${g.name === myGate ? "#0d904f" : g.name === currentGate ? "#d93025" : "#e8eaed"}`,
+                            background: g.name === myGate ? "#e6f4ea" : g.name === currentGate ? "#fce8e6" : "#f8f9fa",
+                          }}>
+                            <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#202124", display:"flex", alignItems:"center", gap:"0.2rem" }}>
+                              {g.name === myGate && <DoorOpen size={14} color="#0d904f"/>}
+                              {g.name === currentGate && <MapPin size={14} color="#d93025"/>}
+                              {g.name}
+                            </div>
+                            <div style={{ fontSize: "0.75rem", color: "#5f6368" }}>
+                              Wait: {g.waitMin || 0} min · {g.currentCount || 0} checked in
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -797,37 +1173,56 @@ export default function FanDashboard() {
 
             {/* ===== AI CHAT TAB ===== */}
             {activeTab === "chat" && (
-              <motion.div
-                key="chat"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <div className={styles.dashCard}>
+              <motion.div key="chat" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <div className={styles.dashCard} style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 200px)" }}>
                   <div className={styles.dashCardHeader}>
-                    <h3 className={styles.dashCardTitle}><MessageSquare size={18} /> Venue AI Assistant</h3>
+                    <h3 className={styles.dashCardTitle}><Sparkles size={18} /> Venue AI Assistant</h3>
+                    <span style={{ fontSize: "0.7rem", color: "#7c3aed", background: "#f3e8fd", padding: "0.2rem 0.5rem", borderRadius: "4px", fontWeight: 600 }}>Powered by Gemini</span>
                   </div>
-                  <div className={styles.dashCardBody} style={{ textAlign: "center", padding: "3rem" }}>
-                    <motion.div
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      style={{
-                        width: 80, height: 80, borderRadius: 20, background: "#f3e8fd",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        margin: "0 auto 1.5rem", color: "#9333ea"
-                      }}
-                    >
-                      <MessageSquare size={36} />
-                    </motion.div>
-                    <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#202124", marginBottom: "0.5rem" }}>
-                      Powered by Gemini AI
-                    </h3>
-                    <p style={{ color: "#5f6368", maxWidth: 400, margin: "0 auto 1.5rem" }}>
-                      Ask anything about the venue — food recommendations, crowd status, nearest exits, and more. Uses live venue data.
-                    </p>
-                    <p style={{ color: "#80868b", fontSize: "0.85rem" }}>
-                      🔜 Gemini AI chatbot integration coming in Phase 3
-                    </p>
+                  <div style={{ flex: 1, overflowY: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {/* Welcome message */}
+                    {chatMessages.length === 0 && (
+                      <div style={{ textAlign: "center", padding: "2rem", color: "#80868b" }}>
+                        <Sparkles size={40} style={{ margin: "0 auto 1rem", color: "#7c3aed" }} />
+                        <h4 style={{ color: "#202124", fontWeight: 700, marginBottom: "0.5rem" }}>Ask me anything about the venue!</h4>
+                        <p style={{ fontSize: "0.85rem", maxWidth: 350, margin: "0 auto" }}>I have access to live venue data — crowd levels, wait times, restrooms, and more.</p>
+                        <div style={{ marginTop: "1rem", display: "flex", flexWrap: "wrap", gap: "0.5rem", justifyContent: "center" }}>
+                          {["Which gate has the shortest wait?", "Where is the nearest restroom?", "How crowded is VIP?", "Find me an accessible restroom"].map((q, i) => (
+                            <button key={i} onClick={() => { handleChatSend(q); }} style={{ padding: "0.4rem 0.75rem", border: "1px solid #e8eaed", borderRadius: "20px", background: "white", color: "#5f6368", fontSize: "0.75rem", cursor: "pointer" }}>{q}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Messages */}
+                    {chatMessages.map((msg, i) => (
+                      <motion.div key={i} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                        <div style={{ maxWidth: "80%", padding: "0.75rem 1rem", borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: msg.role === "user" ? "#1a73e8" : "#f1f3f4", color: msg.role === "user" ? "white" : "#202124", fontSize: "0.9rem", lineHeight: 1.5 }}>
+                          {msg.text}
+                        </div>
+                      </motion.div>
+                    ))}
+                    {chatLoading && (
+                      <div style={{ display: "flex", gap: "0.3rem", padding: "0.5rem" }}>
+                        {[0, 1, 2].map(i => (
+                          <motion.div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#9aa0a6" }} animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }} />
+                        ))}
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                  {/* Input */}
+                  <div style={{ padding: "0.75rem 1rem", borderTop: "1px solid #e8eaed", display: "flex", gap: "0.5rem" }}>
+                    <input
+                      style={{ flex: 1, padding: "0.7rem 1rem", border: "1.5px solid #e8eaed", borderRadius: "24px", fontSize: "0.9rem", outline: "none", fontFamily: "inherit" }}
+                      placeholder="Ask about the venue..."
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleChatSend()}
+                      aria-label="Chat input"
+                    />
+                    <button onClick={handleChatSend} disabled={chatLoading || !chatInput.trim()} style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: chatInput.trim() ? "#1a73e8" : "#f1f3f4", color: chatInput.trim() ? "white" : "#9aa0a6", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} aria-label="Send message">
+                      <Send size={18} />
+                    </button>
                   </div>
                 </div>
               </motion.div>
@@ -836,7 +1231,7 @@ export default function FanDashboard() {
         </div>
       </div>
 
-      {/* SOS Floating Button */}
+      {/* SOS Button */}
       <div className={styles.sosContainer}>
         <motion.button
           className={styles.sosButton}
@@ -856,24 +1251,11 @@ export default function FanDashboard() {
           <SOSModal onClose={() => setSosOpen(false)} onSubmit={handleSOS} />
         )}
         {sosSuccess && (
-          <motion.div
-            className={styles.sosOverlay}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className={styles.sosModal}
-              initial={{ scale: 0.8 }} animate={{ scale: 1 }}
-              style={{ textAlign: "center", padding: "3rem" }}
-            >
-              <motion.div
-                initial={{ scale: 0 }} animate={{ scale: 1 }}
-                transition={{ type: "spring", bounce: 0.5 }}
-                style={{ fontSize: "3rem", marginBottom: "1rem" }}
-              >
-                ✅
-              </motion.div>
+          <motion.div className={styles.sosOverlay} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div className={styles.sosModal} initial={{ scale: 0.8 }} animate={{ scale: 1 }} style={{ textAlign: "center", padding: "3rem" }}>
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }} style={{ fontSize: "3rem", marginBottom: "1rem" }}>✅</motion.div>
               <h3 style={{ fontSize: "1.25rem", fontWeight: 700, color: "#137333" }}>Alert Sent!</h3>
-              <p style={{ color: "#5f6368", marginTop: "0.5rem" }}>Staff has been notified and will reach your location shortly.</p>
+              <p style={{ color: "#5f6368", marginTop: "0.5rem" }}>Staff has been notified and will reach you shortly.</p>
             </motion.div>
           </motion.div>
         )}

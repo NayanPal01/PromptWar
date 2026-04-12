@@ -527,6 +527,16 @@
 }
 
 @media (max-width: 768px) {
+  .hero {
+    padding: 6rem 1.5rem 3rem;
+  }
+  .heroTitle {
+    font-size: 2.2rem;
+  }
+  .heroDescription {
+    font-size: 1.1rem;
+    padding: 0 1rem;
+  }
   .bentoGrid {
     grid-template-columns: 1fr;
   }
@@ -536,7 +546,63 @@
   .navLinks {
     display: none;
   }
+  .twinTitle {
+    font-size: 2rem;
+  }
+  .ctaTitle {
+    font-size: 2.2rem;
+  }
+  .ctaFooter {
+    padding: 4rem 1.5rem;
+  }
+  .roleCard {
+    width: 100%;
+    max-width: 320px;
+  }
+  .topBar {
+    padding: 1rem;
+  }
+  .ctaFinalButtons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ctaFinalButtons .btnWhite, 
+  .ctaFinalButtons .btnOutline,
+  .ctaFinalButtons .btnPrimary,
+  .ctaFinalButtons .btnSecondary {
+    text-align: center;
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 480px) {
   .heroTitle {
-    font-size: 2.5rem;
+    font-size: 1.8rem;
+  }
+  .bentoTitle {
+    font-size: 1.25rem;
+  }
+  .pointItem {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .topBar {
+    padding: 0.75rem 1rem;
+  }
+  .logoIconWrapper {
+    width: 32px;
+    height: 32px;
+  }
+  .logoText {
+    font-size: 1.25rem;
+  }
+  .btnPrimary {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+  .btnSecondary {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
   }
 }
