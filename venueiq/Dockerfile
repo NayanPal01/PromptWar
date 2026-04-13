@@ -15,17 +15,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Bake Firebase + Gemini env vars directly into the build
-# (NEXT_PUBLIC_ vars are inlined at build time by Next.js)
-ENV NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyAfJu3ozPePfpEKm5bb9H8c8ak1N1hv75E
-ENV NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=venueiq-355b3.firebaseapp.com
-ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=venueiq-355b3
-ENV NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=venueiq-355b3.firebasestorage.app
-ENV NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=88825829128
-ENV NEXT_PUBLIC_FIREBASE_APP_ID=1:88825829128:web:782360cb7b679990b37ebd
-ENV NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-5VXWPGFZKD
-ENV NEXT_PUBLIC_GEMINI_API_KEY=AIzaSyAZr8FBPV3LIUaCo4H7wqWTKqmPRcRa9Sw
-
+# Next.js inlines NEXT_PUBLIC_ vars at build time.
+# These are read from .env.production (included via .gcloudignore but NOT in git)
 RUN npm run build
 
 # Production image, copy all the files and run next
