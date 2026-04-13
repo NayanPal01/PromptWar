@@ -12,7 +12,7 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc, collection, serverTimestamp } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAfJu3ozPePfpEKm5bb9H8c8ak1N1hv75E",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: "venueiq-355b3.firebaseapp.com",
   projectId: "venueiq-355b3",
   storageBucket: "venueiq-355b3.firebasestorage.app",
