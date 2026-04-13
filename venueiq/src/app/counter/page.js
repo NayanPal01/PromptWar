@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -18,7 +18,7 @@ const STATUS_FLOW = {
   cancelled: { label: "Cancelled", color: "#d93025", bg: "#fce8e6", next: null, nextLabel: null },
 };
 
-export default function CounterPortal() {
+function CounterApp() {
   const searchParams = useSearchParams();
   const eventId = searchParams.get("eventId");
   const stallId = searchParams.get("stallId");
@@ -198,5 +198,13 @@ export default function CounterPortal() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CounterPage() {
+  return (
+    <Suspense fallback={<div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center' }}>Loading...</div>}>
+      <CounterApp />
+    </Suspense>
   );
 }

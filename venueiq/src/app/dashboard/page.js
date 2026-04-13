@@ -13,7 +13,7 @@
  * - Accessibility toggle
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
@@ -288,7 +288,7 @@ function SOSModal({ onClose, onSubmit }) {
 /* ============================================
    MAIN DASHBOARD PAGE (EVENT-SCOPED)
    ============================================ */
-export default function FanDashboard() {
+function FanDashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const eventId = searchParams.get("eventId");
@@ -1261,5 +1261,13 @@ Answer based on THIS LIVE DATA. Be helpful, concise. If asked about best gate/re
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function FanDashboard() {
+  return (
+    <Suspense fallback={<div style={{ display: 'flex', height: '100vh', justifyContent: 'center', alignItems: 'center' }}>Loading...</div>}>
+      <FanDashboardContent />
+    </Suspense>
   );
 }
