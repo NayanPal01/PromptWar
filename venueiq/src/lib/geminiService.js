@@ -101,7 +101,7 @@ Return ONLY valid JSON (no markdown, no backticks) with this exact structure:
 Be realistic. Use actual data when available. Include 3-8 gates, 4-8 zones, 2-4 restrooms. Include a Mermaid diagram string mapping the gates to the major zones.`;
 
   try {
-    const text = await callGemini(prompt);
+    const text = await callGemini(prompt, 4000);
     
     if (!text) {
       console.warn("All Gemini models failed — using fallback");
